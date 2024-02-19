@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>货单打印</title>
+    <style>
+        .table-box {
+            height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+
+        table {
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .table-box td {
+            text-align: center;
+        }
+
+        table input {
+            width: 50%;
+            text-align: center;
+            background: none;
+            border: 0.1px solid #f0f0f0;;
+            height: 25px;
+        }
+
+        thead th {
+            position: sticky;
+            top: -1px;
+            z-index: 10;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+            border-radius: 3px;
+            background-color: transparent;
+            display: none;
+        }
+
+        .goodsName-input {
+            width: 100%;
+            text-align: left;
+            font-size: 16px;
+        }
+
+        tr:nth-of-type(1):hover td {
+            background: #f0f0f0;
+        }
+
+        tr:hover td {
+            background: #f0f0f0;
+        }
+
+        .pick-data input {
+            border: none;
+            font-size: 16px;
+        }
+
+        .num-class {
+            width: 5%;
+        }
+        .code-class{
+            width: 15%;
+        }
+        .name-class {
+            width: 30%;
+        }
+
+        .unit-class {
+            width: 10%;
+        }
+
+        .custom-file-input::-webkit-file-upload-button {
+            visibility: hidden;
+        }
+
+        .custom-file-input::before {
+            content: '导入';
+            display: inline-block;
+            background: -webkit-linear-gradient(top, #f9f9f9, #e3e3e3);
+            border: 1px solid #999;
+            border-radius: 3px;
+            padding: 5px 8px;
+            outline: none;
+            white-space: nowrap;
+            -webkit-user-select: none;
+            cursor: pointer;
+            text-shadow: 1px 1px #fff;
+            font-weight: 700;
+            font-size: 10pt;
+        }
+
+        .custom-file-input:hover::before {
+            border-color: black;
+        }
+
+        .custom-file-input:active::before {
+            background: -webkit-linear-gradient(top, #e3e3e3, #f9f9f9);
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    商品名称：<input style="width: 15%" type="text" v-model="searchInput">
+    商品条码：<input style="width: 15%" type="text" v-model="searchCode">
+    <button @click="searchGoods()">查询</button>
+    <button @click="reset()">重置</button>
+    <button @click="addGoods()">新增</button>
+    <input type="file" @change="importGoods" class="custom-file-input" accept=".xlsx">
+    <table>
+        <thead>
+        <tr>
+            <th>商品条码</th>
+            <th>商品名称及规格</th>
+            <th>操作</th>
+            <th style="width: 90px">单位</th>
+            <th>批发价</th>
+            <th>PP</th>
+            <th>备注</th>
+            <th style="width: 90px">热度</th>
+        </tr>
+        </thead>
+    </table>
+    <div class="table-box">
+        <table>
+            <tr v-for="(index,goods) in goodsList">
+                <td class="goodsName-td"><input class="goodsName-input" type="text" v-model="goods.goodsCode" name="">
+
+                <td class="goodsName-td"><input class="goodsName-input" type="text" v-model="goods.goodsName" name="">
+                </td>
+                <td>
+                    <div>
+                        <button @click="addTmp(goods,index)">配单+</button>
+                        <button @click="removeTmp(goods.goodsId,index)">配单-</button>
+                    </div>
+                    <div style="margin-top: 5px">
+                        <button @click="saveGoods(goods)">保存+</button>
+                        <button @click="deleteGoods(goods.goodsId,index)">删除-</button>
+                    </div>
+                </td>
+                <td style="width: 90px"><input type="text" v-model="goods.unit" name=""></td>
+                <td><input type="text" v-model="goods.sellingPrice" name=""></td>
+                <td>
+                    <input style="margin-left: 35px" v-if="goods.isShowPrice" type="text" v-model="goods.buyingPrice" name="">
+                    <input  style="margin-left: 35px" v-else type="text" value="******">
+
+                    <span v-if="goods.isShowPrice" @click="showPrice(index)" style="cursor: pointer">隐藏</span>
+                    <span v-else @click="showPrice(index)" style="cursor: pointer">查看</span>
+                </td>
+                <td><input type="text" v-model="goods.description" style="width: 100%;"></td>
+                <td style="width: 90px"><input type="number" v-model="goods.hot"></td>
+            </tr>
+        </table>
+    </div>
+    <div style="text-align: right">共{{goodsList.length}}条</div>
+    <div>
+        <div style="margin: 10px">
+            单号: <input type="text" v-model="orderNo">
+            客户：<input type="text" v-model="customer">
+            地址: <input type="text" v-model="address">
+            电话: <input type="text" v-model="phone">
+            日期: <input type="text" v-model="today">
+        </div>
+        <table>
+            <thead>
+            <tr>
+                <th class="num-class">序号</th>
+                <th class="code-class">商品条码</th>
+                <th class="name-class">商品名称及规格</th>
+                <th class="unit-class">单位</th>
+                <th class="amount-class">数量</th>
+                <th class="price-class">单价</th>
+                <th class="total-class">金额</th>
+                <th class="operate-class">操作</th>
+            </tr>
+            </thead>
+        </table>
+        <div class="table-box pick-data">
+            <table>
+                <tr v-for="(index,goods) in tmpList">
+                    <td class="num-class" style="text-align: center">{{index+1}}</td>
+                    <td class="code-class"><input style="width: 100%" type="text" disabled v-model="goods.goodsCode" name=""></td>
+                    <td class="name-class"><input style="width: 100%" type="text" disabled v-model="goods.goodsName"
+                                                  name=""></td>
+                    <td class="unit-class"><input type="text" disabled v-model="goods.unit" name=""></td>
+                    <td><input type="number" @change="addTmp(goods)" v-model="goods.amount" name=""
+                               style="border: 0.5px solid black"></td>
+                    <td><input type="text" disabled v-model="goods.sellingPrice" name=""></td>
+                    <td><input type="text" disabled value="{{goods.sellingPrice*goods.amount}}" name=""></td>
+                    <td>
+                        <button @click="removeTmp(goods.goodsId,index)">删除</button>
+                        <button @click="addTmp(goods)">保存</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <table>
+            <thead>
+            <tr>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th>总数量:{{totalAmount}}</th>
+                <th>总金额:{{totalPrice}}</th>
+            </tr>
+            </thead>
+        </table>
+        <div style="text-align: right;margin-top: 20px;margin-right: 20px;margin-bottom:20px; ">
+            <button style="height: 30px;width: 100px" @click="clearTmp()">清空配单</button>
+            <button style="height: 30px;width: 100px" @click="printOrder()">导出配单</button>
+        </div>
+    </div>
+</div>
+
+</body>
+<script src="./js/vue.min.js"></script>
+<script src="./js/vue-resource.min.js"></script>
+<script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            searchInput: "",
+            searchCode:"",
+            orderNo: "",
+            phone: "",
+            address: "",
+            customer: "",
+            today: new Date(),
+            goodsList: [],
+            tmpList: [],
+            showPriceMsg: "查看"
+        },
+        created() {
+            this.initGoods();
+            this.getTmp();
+            this.getOrderNo();
+            this.getDate();
+        },
+        computed: {
+            totalAmount: function () {
+                var count = 0;
+                this.tmpList.forEach(function (val, key) {
+                    console.log(val)
+                    count += parseInt(val.amount);
+                });
+                return parseInt(count);
+            },
+            totalPrice: function () {
+                var count = 0;
+                this.tmpList.forEach(function (val, key) {
+                    count += parseFloat(val.sellingPrice) * parseInt(val.amount);
+                });
+                return parseFloat(count);
+            }
+        },
+        methods: {
+            reset: function () {
+                this.searchInput = "";
+                this.searchCode = "";
+                this.searchGoods();
+            },
+            getDate: function () {
+                var yy = new Date().getFullYear()
+                var MM = (new Date().getMonth() + 1) < 10 ? '0' + (new
+                Date().getMonth() + 1) : (new Date().getMonth() + 1)
+                var dd = new Date().getDate() < 10 ? '0' + new Date().getDate() : new
+                Date().getDate();
+                this.today = yy + '-' + MM + '-' + dd;
+            },
+            initGoods: function () {
+                this.$http.get('/linGoods/goods/get/hot')
+                    .then(function (res) {
+                        this.goodsList = res.body.data.list;
+                        this.goodsList.forEach(function (value) {
+                            value.isShowPrice = false;
+                        })
+                        console.log(res);
+                    }, function (res) {
+                        console.log(res.body);
+                    });
+            },
+            saveGoods: function (goods) {
+                console.log(goods);
+                this.$http.post('/linGoods/goods/save', goods).then(function (res) {
+                    console.log(res.body);
+                    if (res.body.code == '0'){
+                        alert("保存成功");
+                    }
+                    this.searchGoods();
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            deleteGoods: function (id, index) {
+                if (confirm("是否确认删除？")){
+                    this.$http.post('/linGoods/goods/delete?id=' + id).then(function (res) {
+                        console.log(res.body);
+                        this.goodsList.splice(index, 1);
+                        if (res.body.code == '0'){
+                            alert("删除成功");
+                        }
+                    }, function (res) {
+                        console.log(res.status);
+                    });
+                }
+            },
+            addTmp: function (goods, index) {
+                var tmp = {
+                    goodsId: goods.goodsId,
+                    amount: goods.amount,
+                    num: this.tmpList.length
+                };
+                this.$http.post('/linGoods/tmp/save', tmp).then(function (res) {
+                    console.log(res.body);
+                    this.getTmp();
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            removeTmp: function (id, index) {
+                this.$http.post('/linGoods/tmp/remove?id=' + id).then(function (res) {
+                    console.log(res.body);
+                    this.tmpList.splice(index, 1);
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            addGoods: function () {
+                this.goodsList = [];
+                var obj = {
+                    goodsName: this.searchInput,
+                    amount: 1,
+                    hot: 0
+                };
+                this.goodsList.push(obj);
+            },
+            searchGoods: function () {
+                var obj = {
+                    pageNo: 1,
+                    pageSize: 1000,
+                    keyword: this.searchInput,
+                    goodsCode:this.searchCode
+                };
+                this.$http.post('/linGoods/goods/search', obj).then(function (res) {
+                    this.goodsList = res.body.data.list;
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            getTmp: function () {
+                this.$http.get('/linGoods/tmp/get')
+                    .then(function (res) {
+                        this.tmpList = res.body.data.list;
+                        console.log(res);
+                    }, function (res) {
+                        console.log(res.body);
+                    });
+            },
+            clearTmp: function () {
+                this.$http.post('/linGoods/tmp/clear').then(function (res) {
+                    this.tmpList = [];
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            saveOrder: function () {
+                var order = {
+                    orderNo: this.orderNo,
+                    phone: this.phone,
+                    address: this.address,
+                    customer: this.customer,
+                    orderDate: this.today
+                };
+                this.$http.post('/linGoods/order/save', order).then(function (res) {
+                    this.getTmp();
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            printOrder: function () {
+                var order = {
+                    orderNo: this.orderNo,
+                    phone: this.phone,
+                    address: this.address,
+                    customer: this.customer,
+                    orderDate: this.today
+                };
+                this.$http.post('/linGoods/order/print', order).then(function (res) {
+                    if (res.body.code == '0') {
+                        this.getTmp();
+                        this.phone = "";
+                        this.address = "";
+                        this.customer = "";
+                        this.getOrderNo();
+                        if (confirm("导出成功，是否需要立即打开excel文件？")) {
+                            this.$http.get('/linGoods/order/open/excel?path=' + res.body.data).then(function (res) {
+
+                            }, function (res) {
+                                console.log(res.status);
+                            });
+                        }
+                    } else {
+                        alert("导出异常");
+                    }
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            getOrderNo: function () {
+                this.$http.get('/linGoods/order/generateOrderNo').then(function (res) {
+                    this.orderNo = res.body.data;
+                }, function (res) {
+                    console.log(res.status);
+                });
+            },
+            importGoods: function (e) {
+                var file = e.target.files[0];
+                console.log(e);
+                var zipFormData = new FormData();
+                zipFormData.append('file', file);
+                var config = {headers: {'Content-Type': 'multipart/form-data'}};
+                this.$http.post('/linGoods/goods/import/file', zipFormData, config).then(function (res) {
+                    console.log(res);
+                    if (res.body.code == '0') {
+                        this.searchGoods();
+                        alert("导入成功!!!");
+                    } else {
+                        alert("导入异常");
+                    }
+                }, function (res) {
+                    console.log(res);
+                });
+            },
+            showPrice: function (index) {
+                var _this = this;
+                // var obj = this.goodsList[index];
+                // if (obj.isShowPrice){
+                //     obj.isShowPrice = false;
+                //     this.showPriceMsg = "查看";
+                // }else{
+                //     obj.isShowPrice = true;
+                //     this.showPriceMsg = "隐藏";
+                // }
+                // this.goodsList.splice(index,1,obj);
+
+                var array = _this.goodsList.map(function (item, key) {
+                    if (index == key) {
+                        item.isShowPrice = !item.isShowPrice;
+                    }
+                    return item;
+                });
+                _this.goodsList = [];
+                // _this.goodsList = array;
+                this.$nextTick(function () {
+                    _this.goodsList = array;
+                });
+            }
+        }
+    })
+
+</script>
+</html>
